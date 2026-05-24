@@ -1,33 +1,84 @@
 <clickhouse>
     <startup_scripts>
-        <!-- this role will only be assigned to one user -->
-        <scripts>
-            <query>CREATE ROLE OR REPLACE 'can_read'</query>
-        </scripts>
-        <!-- this role will be assigned to all users defined using access token external user directory -->
-        <scripts>
-            <query>CREATE ROLE OR REPLACE 'general_role'</query>
-        </scripts>
+
+        <!-- ============================================================
+             ROLES
+             Keycloak groups map to these via roles_transform (- → _):
+               clickhouse-admins   → clickhouse_admins
+               clickhouse-analysts → clickhouse_analysts
+               clickhouse-readers  → clickhouse_readers (also common_role)
+             ============================================================ -->
 
         <scripts>
-            <query>CREATE TABLE default.can_read_specific (str String) ENGINE=TinyLog</query>
+            <query>CREATE ROLE OR REPLACE clickhouse_readers</query>
         </scripts>
         <scripts>
-            <query>CREATE TABLE default.can_read_general (str String) ENGINE=TinyLog</query>
+            <query>CREATE ROLE OR REPLACE clickhouse_analysts</query>
+        </scripts>
+        <scripts>
+            <query>CREATE ROLE OR REPLACE clickhouse_admins</query>
+        </scripts>
+        <!-- reader_role is the common_role given to all token users -->
+        <scripts>
+            <query>CREATE ROLE OR REPLACE reader_role</query>
         </scripts>
 
+        <!-- ============================================================
+             GRANTS
+             reports db  → readers (and up)
+             analytics db → analysts + admins
+             raw db       → admins only
+             ============================================================ -->
+
+        <!-- reader_role (everyone): reports db only -->
         <scripts>
-            <query>INSERT INTO default.can_read_specific VALUES ('can_read_specific');</query>
-        </scripts>
-        <scripts>
-            <query>INSERT INTO default.can_read_general VALUES ('can_read_general');</query>
+            <query>GRANT SELECT ON reports.* TO reader_role</query>
         </scripts>
 
+        <!-- clickhouse_readers: same as reader_role (belt + suspenders) -->
         <scripts>
-            <query>GRANT SELECT ON default.can_read_specific TO 'can_read'</query>
+            <query>GRANT reader_role TO clickhouse_readers</query>
+        </scripts>
+
+        <!-- clickhouse_analysts: reports + analytics -->
+        <scripts>
+            <query>GRANT reader_role TO clickhouse_analysts</query>
         </scripts>
         <scripts>
-            <query>GRANT SELECT ON default.can_read_general TO 'general_role'</query>
+            <query>GRANT SELECT ON analytics.* TO clickhouse_analysts</query>
         </scripts>
+
+        <!-- clickhouse_admins: everything -->
+        <scripts>
+            <query>GRANT clickhouse_analysts TO clickhouse_admins</query>
+        </scripts>
+        <scripts>
+            <query>GRANT SELECT ON raw.* TO clickhouse_admins</query>
+        </scripts>
+        <scripts>
+            <query>GRANT SELECT ON system.query_log TO clickhouse_admins</query>
+        </scripts>
+        <scripts>
+            <query>GRANT SELECT ON system.processes TO clickhouse_admins</query>
+        </scripts>
+
+        <!-- ============================================================
+             DAVE — a native ClickHouse user
+             
+             As a password-auth user, dave has reader_role only (reports.*).
+             When dave authenticates via JWT token instead, Keycloak says he
+             belongs to clickhouse-analysts, so he gets clickhouse_analysts
+             (reports.* + analytics.*).
+             
+             This demonstrates that the same person gets different access
+             depending on HOW they authenticate — password vs token.
+             ============================================================ -->
+        <scripts>
+            <query>CREATE USER IF NOT EXISTS dave IDENTIFIED BY 'dave'</query>
+        </scripts>
+        <scripts>
+            <query>GRANT reader_role TO dave</query>
+        </scripts>
+
     </startup_scripts>
 </clickhouse>

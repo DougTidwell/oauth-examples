@@ -4,7 +4,12 @@
             <type>OpenID</type>
             <userinfo_endpoint>http://keycloak:8080/realms/grafana/protocol/openid-connect/userinfo</userinfo_endpoint>
             <token_introspection_endpoint>http://keycloak:8080/realms/grafana/protocol/openid-connect/token/introspect</token_introspection_endpoint>
-            <jwks_uri>http://keycloak:8080/realms/grafana/protocol/openid-connect/certs</jwks_uri>
+            <!-- jwks_uri intentionally omitted: if present, ClickHouse validates the JWT
+                 signature locally and checks iss against the JWKS issuer
+                 (http://keycloak:8080). Tokens fetched via localhost:8080 have
+                 iss=http://localhost:8080 and fail that check.
+                 Without jwks_uri, ClickHouse always calls userinfo_endpoint to
+                 validate, which works regardless of how the token was obtained. -->
             <token_cache_lifetime>60</token_cache_lifetime>
         </keycloak>
     </token_processors>
@@ -12,7 +17,7 @@
         <token>
             <processor>keycloak</processor>
             <common_roles>
-                <general_role />
+                <reader_role />
             </common_roles>
             <roles_transform>s/-/_/g</roles_transform>
         </token>

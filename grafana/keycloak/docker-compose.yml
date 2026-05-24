@@ -1,4 +1,5 @@
 services:
+
   keycloak:
     image: keycloak/keycloak:26.3
     command: start-dev --import-realm --hostname=localhost
@@ -16,16 +17,19 @@ services:
       retries: 20
 
   clickhouse:
-    image: 	altinity/clickhouse-server:25.8.16.20001.altinityantalya   # TODO: always check for a newer version
+    image: altinityinfra/clickhouse-server:1784-26.3.10.20001.altinityantalya
     ports:
       - "8123:8123"
+      - "9000:9000"
     volumes:
-      # - clickhouse-data:/var/lib/clickhouse
       - ./clickhouse/clickhouse-low-ram-config.xml:/etc/clickhouse-server/config.d/clickhouse-low-ram-config.xml:ro
       - ./clickhouse/clickhouse-low-ram-user-profile.xml:/etc/clickhouse-server/users.d/clickhouse-low-ram-user-profile.xml:ro
       - ./clickhouse/startup_scripts.xml:/etc/clickhouse-server/config.d/startup_scripts.xml:ro
       - ./clickhouse/processor_directory.xml:/etc/clickhouse-server/config.d/processor_directory.xml:ro
       - ./clickhouse/session-log.xml:/etc/clickhouse-server/config.d/session-log.xml:ro
+      - ./clickhouse/01_create_tables.sh:/docker-entrypoint-initdb.d/01_create_tables.sh:ro
+      - ./clickhouse/02_load_data.sh:/docker-entrypoint-initdb.d/02_load_data.sh:ro
+      - ./clickhouse/orders_raw.csv:/docker-entrypoint-initdb.d/orders_raw.csv:ro
     mem_limit: 4000M
     cpus: 2.0
     depends_on:
@@ -46,20 +50,36 @@ services:
       - GF_AUTH_GENERIC_OAUTH_AUTH_URL=http://localhost:8080/realms/grafana/protocol/openid-connect/auth
       - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=http://keycloak:8080/realms/grafana/protocol/openid-connect/token
       - GF_AUTH_GENERIC_OAUTH_API_URL=http://keycloak:8080/realms/grafana/protocol/openid-connect/userinfo
-      # - GF_USERS_AUTO_ASSIGN_ORG_ROLE=Admin
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(groups[*], 'grafana-admins') && 'Admin' || 'Viewer'
+      - GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(groups[*], 'grafana-admins') && 'Admin' || contains(groups[*], 'grafana-editors') && 'Editor' || 'Viewer'
       - GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=vertamedia-clickhouse-datasource
       - GF_INSTALL_PLUGINS=https://github.com/Altinity/clickhouse-grafana/releases/download/v3.3.0/vertamedia-clickhouse-datasource-3.3.0.zip;vertamedia-clickhouse-datasource
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
       - "3000:3000"
-    # volumes:
-    #   - grafana-data:/var/lib/grafana
     depends_on:
       keycloak:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 90s   # plugin install takes a while
 
-# volumes:
-#   grafana-data:
-#   clickhouse-data:
+  grafana-setup:
+    image: alpine:latest
+    # Override entrypoint so we can run a shell script
+    entrypoint: ["/bin/sh", "-c", "sh /setup/setup_permissions.sh;"]
+    volumes:
+      - ./grafana/setup_permissions.sh:/setup/setup_permissions.sh:ro
+    depends_on:
+      grafana:
+        condition: service_healthy
+    # This container's job is done once the script exits.
+    # restart: no is the default but being explicit avoids confusion.
+    restart: "no"

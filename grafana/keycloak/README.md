@@ -1,78 +1,137 @@
-## Demo setup for Grafana <-> Keycloak <-> ClickHouse OAuth integration
+# Grafana + Keycloak + ClickHouse OAuth Demo
 
-This setup runs Grafana, ClickHouse and Keycloak in Docker (locally). Keycloak is used as an external authenticator and external user directory by both Grafana and ClickHouse.
+A working demonstration of JWT-based access control across three services. A token issued
+by Keycloak determines what data a user can query in ClickHouse and which dashboards they
+can see in Grafana — with no local user accounts needed in ClickHouse.
 
-In this set-up, everything is already pre-configured and dockerized.
+## Quick start
 
-in Keycloak, a user with name `demo` is created. This user belongs to group `grafana-admins`, which is translated to Admin group in Grafana itself. Also, this role will be passed down to ClickHouse.
-
-### How to run
-
-0. Clone this repository and navigate to `keycloak` directory:
-```bash
-git clone https://github.com/zvonand/grafana-oauth.git
-cd keycloak
-```
-
-2. Start Docker containers
 ```bash
 docker compose up
 ```
 
-3. Wait for this message in Compose logs:
-```
-grafana-1     | ✔ Downloaded and extracted vertamedia-clickhouse-datasource v3.3.0 zip successfully to /var/lib/grafana/plugins/vertamedia-clickhouse-datasource
-```
+Grafana takes about 90 seconds to install the ClickHouse plugin. The `grafana-setup`
+container runs automatically once Grafana is ready and sets folder permissions. When
+`grafana-setup` exits, everything is ready. Go to http://localhost:3000.
 
-4. In your web browser, go to `http://localhost:3000`.
+## Users
 
-5. Click "Sign in with Keycloak" on the login page:
+| User  | Password | Keycloak groups                                   | ClickHouse access (token)  | Grafana role |
+|-------|----------|---------------------------------------------------|----------------------------|--------------|
+| alice | alice    | clickhouse-admins, grafana-admins                 | raw + analytics + reports  | Admin        |
+| bob   | bob      | clickhouse-analysts, grafana-editors              | analytics + reports        | Editor       |
+| carol | carol    | clickhouse-readers, grafana-viewers               | reports only               | Viewer       |
+| demo  | demo     | clickhouse-admins, grafana-admins                 | raw + analytics + reports  | Admin        |
+| dave  | dave     | clickhouse-analysts, grafana-editors (Keycloak)   | see below                  | Editor       |
 
-6. If prompted, use `demo` as both username and password.
+### Dave — two identities
 
-7. Go to "Connections" -> "Data Sources" tab (in the left vertical menu), press "add data source" and search for **Altinity plugin for ClickHouse** ![Screenshot from 2024-12-16 15-41-05](https://github.com/user-attachments/assets/fe2ce8d1-ea4a-488b-9cc7-c44c270de5b0)
+Dave exists in both ClickHouse and Keycloak. His access depends on how he authenticates:
 
-8. In this view ![Screenshot from 2024-12-16 15-52-02](https://github.com/user-attachments/assets/e2f3ebf9-c88b-460d-934c-f1bf045d511b)
-   * Enter URL `http://clickhouse:8123`
-   * Toggle "Forward OAuth Identity" switch
+| Auth method | How | ClickHouse access |
+|-------------|-----|-------------------|
+| Password | `clickhouse-client --user dave --password dave` | reports only (`reader_role`) |
+| JWT token | `clickhouse-client --jwt $TOKEN` | reports + analytics (`clickhouse_analysts`) |
 
-9. Click "Save & Test" at the bottom of this page: ![Screenshot from 2024-12-16 15-54-48](https://github.com/user-attachments/assets/b6612aab-a632-4097-b43c-55188a6a73be).
+Alice, Bob, and Carol have no local ClickHouse accounts at all. ClickHouse trusts the JWT
+Keycloak issues and assigns roles from the `groups` claim automatically.
 
+## What each user sees in Grafana
 
-#### Try it
+**Carol (Viewer)** — *Executive Overview* only: monthly revenue by region, channel
+breakdown, category summary. Data from `reports.*` — pre-aggregated, no PII.
 
-1. Go to "Explore" tab:
+**Bob and Dave (Editor)** — *Executive Overview* and *Analytics Dashboard*: daily revenue
+time series, top products, margin by category, order volume trends. Data from
+`analytics.*` and `reports.*`.
 
-![Screenshot from 2024-12-16 15-56-05](https://github.com/user-attachments/assets/ddf1fbe4-3341-41df-b935-00cc064ffb74)
+**Alice / demo (Admin)** — all three dashboards including the *Admin Dashboard*: raw order
+rows with customer names and emails, cost vs price analysis, daily order value by channel.
+Data from `raw.*`, `analytics.*`, and `reports.*`.
 
-2. In this view:
-    * Switch to "SQL Editor" mode
-    * Switch "Format As" to "table"
-  
-![Screenshot from 2024-12-16 15-57-17](https://github.com/user-attachments/assets/5fbeac22-8a20-432e-b779-b07c459bf15e)
-
-3. Enter the query: `select currentUser()`, and press "Run Query", the username shall be printed. The username is the same as `sub` value in your Azure AD. 
-
-By default, ClickHouse does not grant any roles or privileges to external users. All the user can do is basically view his own name. That is why a role `general-role` and `can-read` roles is created on start-up.
-
-* ClickHouse is configured to assign role `general-role` to __all__ users defined in Keycloak. This role allows to read `can_read_general` table in `default` database. This table is pre-defined and has one row.
-* Also, in Keycloak your user belongs to a group `can-read`. This group is mapped to the corresponding role in ClickHouse, and this role allows user to read `default.can_read_specific` table. This table is also pre-defined and has one row.
-
-You can verify that user is actually able to read the tables:
-
-4. Enter the query: `select * from default.can_read_specific` or `select * from default.can_read_general`, and press "Run Query". No exceptions shall be thrown, and table contents will be printed.
-
-
-### Debugging
-
-You can obtain a token directly from your Keycloak instance:
+## How the access control works
 
 ```
-curl --request POST   http://localhost:8080/realms/<realm name>/protocol/openid-connect/token --header "Content-Type: application/x-www-form-urlencoded" --data "client_id=<your client_id>" --data "username=<your username>" --data "password=<your password>" --data "grant_type=password" --data "client_secret=<your secret>" --data "scope=openid profile email"
+Keycloak group         roles_transform (- → _)    ClickHouse role
+─────────────────────  ──────────────────────────  ──────────────────────────────
+clickhouse-readers  →  clickhouse_readers       →  SELECT on reports.*
+clickhouse-analysts →  clickhouse_analysts      →  SELECT on reports.* + analytics.*
+clickhouse-admins   →  clickhouse_admins        →  SELECT on reports.* + analytics.* + raw.*
 ```
 
-In order to be able to make such request, you need to allow in in Keycloak:
+The JWT Keycloak issues contains a `groups` claim. ClickHouse's token processor reads that
+claim, applies `roles_transform` to convert hyphens to underscores, and assigns the
+matching role. No local ClickHouse users are needed for token-authenticated users.
 
-1. Navigate to your realm → Clients → select your client app.
-2. In general settings: set "Client authentication" to "off" (off = public, on = confidential).
-3. Enable Direct Access Grants.
+Grafana maps Keycloak groups to Grafana roles, which control dashboard visibility:
+
+```
+grafana-admins  → Admin  → sees all three dashboards
+grafana-editors → Editor → sees public + analytics
+(everyone else) → Viewer → sees public only
+```
+
+## Token demo
+
+`token_demo.sh` shows the full access control matrix from the command line. It fetches
+tokens from Keycloak and runs queries via the containerized `clickhouse-client`:
+
+```bash
+bash token_demo.sh
+```
+
+The dave section is the interesting part — it runs the same queries twice, once with
+`--user dave --password dave` (reader access only) and once with `--jwt $TOKEN`
+(analyst access via Keycloak groups), showing that the same person gets different
+ClickHouse permissions depending on how they authenticate.
+
+You can also query interactively using ClickHouse Play at http://localhost:8123/play.
+Log in as `dave`/`dave` to see his native password-auth access level (reports only).
+
+## Resetting between demo runs
+
+Log out without restarting:
+```
+http://localhost:3000/logout
+http://localhost:8080/realms/grafana/protocol/openid-connect/logout
+```
+
+Full restart:
+```bash
+docker compose down && docker compose up
+```
+
+Folder permissions are reset on restart — `grafana-setup` re-applies them automatically.
+
+Get a token for manual testing:
+```bash
+TOKEN=$(curl -s -X POST \
+  http://localhost:8080/realms/grafana/protocol/openid-connect/token \
+  -d "client_id=grafana-client&client_secret=grafana-secret&grant_type=password" \
+  -d "username=alice&password=alice&scope=openid" \
+  | jq -r .access_token)
+
+# Use it with clickhouse-client
+docker compose exec clickhouse clickhouse-client \
+  --jwt "$TOKEN" \
+  --query "SELECT currentUser(), groupArray(role_name) FROM system.current_roles GROUP BY 1"
+
+# Use it with the HTTP interface (same path Grafana uses)
+curl -s "http://localhost:8123/?query=SELECT+currentUser()" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## Data
+
+2,000 synthetic e-commerce orders dated 2024-01-01 to 2024-12-30, across 5 regions
+(Midwest, Northeast, Southeast, Southwest, West), 3 channels (web, mobile,
+email_campaign), 3 statuses (completed, returned, cancelled), and 3 product categories
+(Electronics, Office, Accessories).
+
+Loaded on first container start from `orders_raw.csv` into:
+
+- `raw.orders` — full rows including customer PII and unit cost data (admins only)
+- `analytics.orders` — derived columns added: revenue, margin, margin_pct (analysts+)
+- `reports.monthly_revenue` — aggregated by month / region / category (all users)
+- `reports.product_performance` — one row per product (all users)
+- `reports.channel_summary` — one row per channel (all users)
