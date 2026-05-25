@@ -68,7 +68,7 @@ clickhouse_admins   → SELECT on reports.* + analytics.* + raw.*
 reader_role         → SELECT on reports.* (assigned to all token users via common_roles)
 ```
 
-`priya` is a native ClickHouse user (`IDENTIFIED BY 'priya'`) with `reader_role` only. When he authenticates via JWT instead, his Keycloak group (`clickhouse-analysts`) gives him analyst access. Same person, different access depending on auth method.
+`priya` is a native ClickHouse user (`IDENTIFIED BY 'priya'`) with `reader_role` only. When they authenticate via JWT instead, their Keycloak group (`clickhouse-analysts`) gives them analyst access. Same person, different access depending on auth method.
 
 ## ClickHouse query format for Grafana dashboards
 
@@ -122,7 +122,7 @@ Grafana reports healthy before finishing plugin installation and dashboard provi
 
 **`setup_permissions.sh` exits with code 0 but permissions not set** — the script is probably running against `http://localhost:3000` instead of `http://grafana:3000`. The internal Docker hostname must be used, not localhost.
 
-**Grafana folder permissions reset on restart** — `setup_permissions.sh` must be re-run after every `docker compose down && up`. Permissions are stored in Grafana's database (ephemeral), not in provisioning files.
+**Grafana folder permissions reset on restart** — `setup_permissions.sh` must be re-run after every `docker compose down && up`. By default the `grafana-setup` container handles this, but if the Grafana permissions are not correct (every user has access to every dashboard), run `setup_permissions.sh` and all will be well. Permissions are stored in Grafana's database (ephemeral), not in provisioning files.
 
 ## Token demo
 
@@ -138,4 +138,4 @@ It fetches tokens from Keycloak for each user and runs test queries via `docker 
 
 `orders_raw.csv` contains 2000 synthetic e-commerce orders dated 2024-01-01 to 2024-12-30 across 5 regions (Midwest, Northeast, Southeast, Southwest, West), 3 channels (web, mobile, email_campaign), 3 statuses (completed, returned, cancelled), and 3 product categories (Electronics, Office, Accessories).
 
-Dashboard time range is set to `2024-01-01 → 2024-12-31` to match. Do not use relative time ranges like `now-1y` — the data is static.
+Dashboard time range is set to `2024-01-01 → 2024-12-31` to match. Do not use relative time ranges like `now-1y` — the data is static. The Grafana dashboards are configured to use the 2024 time range when they load. 
