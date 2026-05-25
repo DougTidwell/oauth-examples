@@ -33,21 +33,15 @@ Amara, Helen, and Mateo have no local ClickHouse accounts at all. ClickHouse tru
 
 ## What each user sees in Grafana
 
-**Mateo (Viewer)** — *Executive Overview* only: monthly revenue by region, channel breakdown, category summary. Data from `reports.*` — pre-aggregated, no PII.
-
-Mateo's Grafana access includes the Reports Dashboard: 
+**Mateo (Viewer)** — *Executive Overview* only: monthly revenue by region, channel breakdown, category summary. Data from `reports.*` — pre-aggregated, no PII. The Executive Overview dashboard looks like this:
 
 ![The Grafana reports dashboard](../../docs/images/oauth_grafana_reports_dashboard.svg)
 
-**Helen and Priya (Editor)** — *Executive Overview* and *Analytics Dashboard*: daily revenue time series, top products, margin by category, order volume trends. Data from `analytics.*` and `reports.*`.
-
-Helen and Priya's Grafana access includes the Reports Dashboard above as well as the Analytics Dashboard: 
+**Helen and Priya (Editor)** — *Executive Overview* and *Analytics Dashboard*: daily revenue time series, top products, margin by category, order volume trends. Data from `analytics.*` and `reports.*`. The Analytics dashboard looks like this: 
 
 ![The Grafana analytics dashboard](../../docs/images/oauth_grafana_analytics_dashboard.svg)
 
-**Amara / demo (Admin)** — all three dashboards including the *Admin Dashboard*: raw order rows with customer names and emails, cost vs price analysis, daily order value by channel. Data from `raw.*`, `analytics.*`, and `reports.*`.
-
-Amara's Grafana access includes the Reports and Analytics dashboards as well as the Admin dashboard: 
+**Amara / demo (Admin)** — all three dashboards including the *Admin Dashboard*: raw order rows with customer names and emails, cost vs price analysis, daily order value by channel. Data from `raw.*`, `analytics.*`, and `reports.*`. The Admin dashboard looks like this: 
 
 ![The Grafana Admin dashboard](../../docs/images/oauth_grafana_admin_dashboard.svg)
 
@@ -108,7 +102,11 @@ TOKEN=$(curl -s -X POST \
   -d "client_id=grafana-client&client_secret=grafana-secret&grant_type=password" \
   -d "username=amara&password=amara&scope=openid" \
   | jq -r .access_token)
+```
 
+At this time only the Altinity Antalya build of `clickhouse-client` supports the `--jwt` parameter. For that reason, we're running it via `docker exec` to make sure we're getting the right build: 
+
+```bash
 # Use it with clickhouse-client
 docker compose exec clickhouse clickhouse-client \
   --jwt "$TOKEN" \
