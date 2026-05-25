@@ -6,7 +6,7 @@ This file describes the project structure, configuration conventions, and gotcha
 
 A Docker Compose demo showing OAuth-based access control across three services: Keycloak (identity provider), ClickHouse (database), and Grafana (dashboards). A JWT issued by Keycloak controls what data a user can query in ClickHouse and which dashboards they can see in Grafana — without any local user accounts in ClickHouse.
 
-There is also a native ClickHouse user (`dave`) who demonstrates that password auth and token auth can coexist and yield different access levels for the same person.
+There is also a native ClickHouse user (`priya`) who demonstrates that password auth and token auth can coexist and yield different access levels for the same person.
 
 ## Directory structure
 
@@ -68,7 +68,7 @@ clickhouse_admins   → SELECT on reports.* + analytics.* + raw.*
 reader_role         → SELECT on reports.* (assigned to all token users via common_roles)
 ```
 
-`dave` is a native ClickHouse user (`IDENTIFIED BY 'dave'`) with `reader_role` only. When he authenticates via JWT instead, his Keycloak group (`clickhouse-analysts`) gives him analyst access. Same person, different access depending on auth method.
+`priya` is a native ClickHouse user (`IDENTIFIED BY 'priya'`) with `reader_role` only. When he authenticates via JWT instead, his Keycloak group (`clickhouse-analysts`) gives him analyst access. Same person, different access depending on auth method.
 
 ## ClickHouse query format for Grafana dashboards
 
@@ -132,7 +132,7 @@ Grafana reports healthy before finishing plugin installation and dashboard provi
 bash token_demo.sh
 ```
 
-It fetches tokens from Keycloak for each user and runs test queries via `docker compose exec clickhouse clickhouse-client --jwt`. The dave section explicitly contrasts password auth (reader only) vs token auth (analyst).
+It fetches tokens from Keycloak for each user and runs test queries via `docker compose exec clickhouse clickhouse-client --jwt`. The priya section explicitly contrasts password auth (reader only) vs token auth (analyst).
 
 ## Data
 

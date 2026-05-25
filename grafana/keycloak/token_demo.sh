@@ -2,7 +2,7 @@
 # token_demo.sh
 #
 # Demonstrates JWT token auth against ClickHouse for all users,
-# and contrasts dave's password-auth access vs his token-auth access.
+# and contrasts priya's password-auth access vs his token-auth access.
 #
 # Prerequisites:
 #   - docker compose up (all services running)
@@ -74,59 +74,56 @@ run_query() {
 
 # ── SECTION 1: Token auth via --jwt flag ─────────────────────────────────────
 
-divider "alice — token auth (clickhouse-admins)"
-ALICE_TOKEN=$(get_token alice alice)
-echo "  Token (truncated): ${ALICE_TOKEN:0:50}..."
-run_query "currentUser()"        ok   "$(ch_jwt "$ALICE_TOKEN" 'SELECT currentUser()')"
-run_query "active roles"         ok   "$(ch_jwt "$ALICE_TOKEN" 'SELECT groupArray(role_name) FROM system.current_roles')"
-run_query "raw.orders (admins)"  ok   "$(ch_jwt "$ALICE_TOKEN" 'SELECT count() FROM raw.orders')"
+divider "amara — token auth (clickhouse-admins)"
+AMARA_TOKEN=$(get_token amara amara)
+echo "  Token (truncated): ${AMARA_TOKEN:0:50}..."
+run_query "currentUser()"        ok   "$(ch_jwt "$AMARA_TOKEN" 'SELECT currentUser()')"
+run_query "active roles"         ok   "$(ch_jwt "$AMARA_TOKEN" 'SELECT groupArray(role_name) FROM system.current_roles')"
+run_query "raw.orders (admins)"  ok   "$(ch_jwt "$AMARA_TOKEN" 'SELECT count() FROM raw.orders')"
 
-divider "bob — token auth (clickhouse-analysts)"
-BOB_TOKEN=$(get_token bob bob)
-echo "  Token (truncated): ${BOB_TOKEN:0:50}..."
-run_query "currentUser()"                    ok   "$(ch_jwt "$BOB_TOKEN" 'SELECT currentUser()')"
-run_query "analytics.orders (analysts+)"     ok   "$(ch_jwt "$BOB_TOKEN" 'SELECT count() FROM analytics.orders')"
-run_query "raw.orders (admins only)"         fail "$(ch_jwt "$BOB_TOKEN" 'SELECT count() FROM raw.orders')"
+divider "helen — token auth (clickhouse-analysts)"
+HELEN_TOKEN=$(get_token helen helen)
+run_query "currentUser()"                    ok   "$(ch_jwt "$HELEN_TOKEN" 'SELECT currentUser()')"
+run_query "analytics.orders (analysts+)"     ok   "$(ch_jwt "$HELEN_TOKEN" 'SELECT count() FROM analytics.orders')"
+run_query "raw.orders (admins only)"         fail "$(ch_jwt "$HELEN_TOKEN" 'SELECT count() FROM raw.orders')"
 
-divider "carol — token auth (clickhouse-readers)"
-CAROL_TOKEN=$(get_token carol carol)
-echo "  Token (truncated): ${CAROL_TOKEN:0:50}..."
-run_query "currentUser()"                        ok   "$(ch_jwt "$CAROL_TOKEN" 'SELECT currentUser()')"
-run_query "reports.monthly_revenue (readers+)"   ok   "$(ch_jwt "$CAROL_TOKEN" 'SELECT count() FROM reports.monthly_revenue')"
-run_query "analytics.orders (analysts+)"         fail "$(ch_jwt "$CAROL_TOKEN" 'SELECT count() FROM analytics.orders')"
+divider "mateo — token auth (clickhouse-readers)"
+MATEO_TOKEN=$(get_token mateo mateo)
+run_query "currentUser()"                        ok   "$(ch_jwt "$MATEO_TOKEN" 'SELECT currentUser()')"
+run_query "reports.monthly_revenue (readers+)"   ok   "$(ch_jwt "$MATEO_TOKEN" 'SELECT count() FROM reports.monthly_revenue')"
+run_query "analytics.orders (analysts+)"         fail "$(ch_jwt "$MATEO_TOKEN" 'SELECT count() FROM analytics.orders')"
 
-# ── SECTION 2: Dave — password vs token ──────────────────────────────────────
+# ── SECTION 2: Priya — password vs token ──────────────────────────────────────
 
-divider "dave — password auth (native ClickHouse user, reader_role only)"
-echo "  Dave exists in ClickHouse with IDENTIFIED BY 'dave'."
+divider "priya — password auth (native ClickHouse user, reader_role only)"
+echo "  Priya exists in ClickHouse with IDENTIFIED BY 'priya'."
 echo "  His local grant: reader_role → reports.* only"
 echo ""
-run_query "currentUser()"                      ok   "$(ch_pass dave dave 'SELECT currentUser()')"
-run_query "reports.monthly_revenue (granted)"  ok   "$(ch_pass dave dave 'SELECT count() FROM reports.monthly_revenue')"
-run_query "analytics.orders (not granted)"     fail "$(ch_pass dave dave 'SELECT count() FROM analytics.orders')"
+run_query "currentUser()"                      ok   "$(ch_pass priya priya 'SELECT currentUser()')"
+run_query "reports.monthly_revenue (granted)"  ok   "$(ch_pass priya priya 'SELECT count() FROM reports.monthly_revenue')"
+run_query "analytics.orders (not granted)"     fail "$(ch_pass priya priya 'SELECT count() FROM analytics.orders')"
 
-divider "dave — token auth (Keycloak: clickhouse-analysts)"
-DAVE_TOKEN=$(get_token dave dave)
-echo "  Token (truncated): ${DAVE_TOKEN:0:50}..."
-echo "  Dave's Keycloak account is in clickhouse-analysts."
+divider "priya — token auth (Keycloak: clickhouse-analysts)"
+PRIYA_TOKEN=$(get_token priya priya)
+echo "  Priya's Keycloak account is in clickhouse-analysts."
 echo "  Via --jwt, ClickHouse ignores the local user definition"
 echo "  and assigns roles from the JWT groups claim instead."
 echo ""
-run_query "currentUser()"                       ok   "$(ch_jwt "$DAVE_TOKEN" 'SELECT currentUser()')"
-run_query "analytics.orders (now accessible)"   ok   "$(ch_jwt "$DAVE_TOKEN" 'SELECT count() FROM analytics.orders')"
-run_query "raw.orders (still blocked)"          fail "$(ch_jwt "$DAVE_TOKEN" 'SELECT count() FROM raw.orders')"
+run_query "currentUser()"                       ok   "$(ch_jwt "$PRIYA_TOKEN" 'SELECT currentUser()')"
+run_query "analytics.orders (now accessible)"   ok   "$(ch_jwt "$PRIYA_TOKEN" 'SELECT count() FROM analytics.orders')"
+run_query "raw.orders (still blocked)"          fail "$(ch_jwt "$PRIYA_TOKEN" 'SELECT count() FROM raw.orders')"
 
 # ── SECTION 3: HTTP interface (same path as Grafana) ─────────────────────────
 
 divider "HTTP interface — Authorization: Bearer (Grafana's path)"
 echo "  This is how the Grafana plugin forwards tokens to ClickHouse."
 echo ""
-ALICE_HTTP=$(ch_http_jwt "$ALICE_TOKEN" "SELECT currentUser()")
-BOB_HTTP=$(ch_http_jwt "$BOB_TOKEN" "SELECT currentUser()")
-CAROL_HTTP=$(ch_http_jwt "$CAROL_TOKEN" "SELECT currentUser()")
-ok "alice via HTTP: $ALICE_HTTP"
-ok "bob   via HTTP: $BOB_HTTP"
-ok "carol via HTTP: $CAROL_HTTP"
+AMARA_HTTP=$(ch_http_jwt "$AMARA_TOKEN" "SELECT currentUser()")
+HELEN_HTTP=$(ch_http_jwt "$HELEN_TOKEN" "SELECT currentUser()")
+MATEO_HTTP=$(ch_http_jwt "$MATEO_TOKEN" "SELECT currentUser()")
+ok "amara via HTTP: $AMARA_HTTP"
+ok "helen   via HTTP: $HELEN_HTTP"
+ok "mateo via HTTP: $MATEO_HTTP"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
@@ -135,10 +132,10 @@ cat << 'TABLE'
 
   User   Auth       Flag        Roles assigned          raw  analytics  reports
   ─────  ─────────  ──────────  ──────────────────────  ───  ─────────  ───────
-  alice  token      --jwt       clickhouse_admins        ✓       ✓         ✓
-  bob    token      --jwt       clickhouse_analysts      ✗       ✓         ✓
-  carol  token      --jwt       clickhouse_readers       ✗       ✗         ✓
-  dave   password   --password  reader_role (local)      ✗       ✗         ✓
-  dave   token      --jwt       clickhouse_analysts      ✗       ✓         ✓
+  amara  token      --jwt       clickhouse_admins        ✓       ✓         ✓
+  helen  token      --jwt       clickhouse_analysts      ✗       ✓         ✓
+  mateo  token      --jwt       clickhouse_readers       ✗       ✗         ✓
+  priya  password   --password  reader_role (local)      ✗       ✗         ✓
+  priya  token      --jwt       clickhouse_analysts      ✗       ✓         ✓
 
 TABLE

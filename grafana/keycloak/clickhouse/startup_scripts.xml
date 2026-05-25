@@ -63,21 +63,21 @@
         </scripts>
 
         <!-- ============================================================
-             DAVE — a native ClickHouse user
+             PRIYA — a native ClickHouse user
              
-             As a password-auth user, dave has reader_role only (reports.*).
-             When dave authenticates via JWT token instead, Keycloak says he
-             belongs to clickhouse-analysts, so he gets clickhouse_analysts
+             As a password-auth user, priya has reader_role only (reports.*).
+             When priya authenticates via JWT token instead, Keycloak says she
+             belongs to clickhouse-analysts, so she gets clickhouse_analysts
              (reports.* + analytics.*).
              
              This demonstrates that the same person gets different access
              depending on HOW they authenticate — password vs token.
              ============================================================ -->
         <scripts>
-            <query>CREATE USER IF NOT EXISTS dave IDENTIFIED BY 'dave'</query>
+            <query>CREATE USER IF NOT EXISTS priya IDENTIFIED BY 'priya'</query>
         </scripts>
         <scripts>
-            <query>GRANT reader_role TO dave</query>
+            <query>GRANT reader_role TO priya</query>
         </scripts>
 
     </startup_scripts>

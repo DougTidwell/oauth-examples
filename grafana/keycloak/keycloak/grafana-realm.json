@@ -38,15 +38,15 @@
   ],
   "users": [
     {
-      "username": "alice",
-      "email": "alice@example.com",
-      "firstName": "Alice",
+      "username": "amara",
+      "email": "amara@example.com",
+      "firstName": "Amara",
       "lastName": "Admin",
       "enabled": true,
       "credentials": [
         {
           "type": "password",
-          "value": "alice",
+          "value": "amara",
           "temporary": false
         }
       ],
@@ -56,15 +56,15 @@
       ]
     },
     {
-      "username": "bob",
-      "email": "bob@example.com",
-      "firstName": "Bob",
+      "username": "helen",
+      "email": "helen@example.com",
+      "firstName": "Helen",
       "lastName": "Analyst",
       "enabled": true,
       "credentials": [
         {
           "type": "password",
-          "value": "bob",
+          "value": "helen",
           "temporary": false
         }
       ],
@@ -74,15 +74,15 @@
       ]
     },
     {
-      "username": "carol",
-      "email": "carol@example.com",
-      "firstName": "Carol",
+      "username": "mateo",
+      "email": "mateo@example.com",
+      "firstName": "Mateo",
       "lastName": "Reader",
       "enabled": true,
       "credentials": [
         {
           "type": "password",
-          "value": "carol",
+          "value": "mateo",
           "temporary": false
         }
       ],
@@ -110,15 +110,15 @@
       ]
     },
     {
-      "username": "dave",
-      "email": "dave@example.com",
-      "firstName": "Dave",
+      "username": "priya",
+      "email": "priya@example.com",
+      "firstName": "Priya",
       "lastName": "Native",
       "enabled": true,
       "credentials": [
         {
           "type": "password",
-          "value": "dave",
+          "value": "priya",
           "temporary": false
         }
       ],
